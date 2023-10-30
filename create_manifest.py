@@ -2,6 +2,8 @@ import json
 import os
 from icecream import ic
 
+import generate
+
 
 # Read the .curseclient file
 def read_project_guid():
@@ -40,31 +42,58 @@ def read_all_curseforge_data():
         return project_data
 
 
-project_guid = read_project_guid()
-print(project_guid)
-
-data = read_all_curseforge_data()
-
-
 def find_project(guid):
-    for project in data:
-        if project["guid"] == guid:
-            return project
+    for project_data in curseforge_data:
+        if project_data["guid"] == guid:
+            return project_data
 
     return None
 
 
-def list_mod_ids(project):
-    addon_ids = []
-    for addon in project["installedAddons"]:
-        addon_ids.append(addon["addonID"])
+def list_file_data(project_data):
+    file_data = []
+    for addon in project_data["installedAddons"]:
+        file_data.append({
+            "projectID": addon["addonId"],
+            "fileID": addon["id"],
+            "required": True
+        })
 
-    return addon_ids
+    return file_data
 
 
-project_data = ic(find_project(project_guid))
+def save_modlist(addon_ids):
+    with open("mods.txt", "w") as f:
+        for addon_id in addon_ids:
+            f.write(str(addon_id) + "\n")
 
-# Get the installed addons
-mod_ids = list_mod_ids(project_data)
 
-print(mod_ids)
+def read_manifest_template():
+    # Reads manifest template
+    with open('manifest-template.json') as m:
+        manifest = json.load(m)
+        return manifest
+
+
+if __name__ == "__main__":
+    project_guid = read_project_guid()
+
+    curseforge_data = read_all_curseforge_data()
+
+    project = ic(find_project(project_guid))
+
+    template = read_manifest_template()
+
+    # Get the installed addons
+    template["files"] = list_file_data(project)
+    template["minecraft"]["version"] = project["baseModLoader"]["minecraftVersion"]
+    template["minecraft"]["modLoaders"] = []
+    template["minecraft"]["modLoaders"].append({
+        "id": project["baseModLoader"]["name"],
+        "primary": True
+    })
+
+
+
+    # Create a mods.txt file with all the mod IDs
+    save_modlist(mod_ids)

@@ -5,115 +5,118 @@ import requests
 import json
 import sys
 
-# Prepare headers with unique user-agent
-headers = {'User-Agent': 'modmanifestgen'}
 
-# Reads manifest template
-with open('manifest-template.json') as m:
-    manifest = json.load(m)
+def generate():
+    # Prepare headers with unique user-agent
+    headers = {'User-Agent': 'modmanifestgen'}
 
-# Check if version is configured in manifest
-if manifest['minecraft']['version'] == '':
-    print('Error. There is no Minecraft version specified in the manifest.json')
-    exit()
+    # Reads manifest template
+    with open('manifest-template.json') as m:
+        manifest = json.load(m)
 
-# Determines latest forge modloader version depending on mc version
-modLoaderData = requests.get('https://addons-ecs.forgesvc.net/api/v2/minecraft/modloader', headers=headers)
-for key in modLoaderData.json():
-    if(key['latest'] == True):
-        if(key['gameVersion'] == manifest['minecraft']['version']):
-            modLoaders = []
-            modLoaders.append({"id":key['name'], "primary":True})
-            manifest['minecraft']["modLoaders"] = modLoaders
-
-# Reads file from drag and drop or first argument, otherwise emods.txt
-if(len(sys.argv) > 1):
-    i = open(sys.argv[1], 'r')
-else:
-    try:
-        i = open('mods.txt')
-    except FileNotFoundError:
-        print('Error. Default mods list (mods.txt) not found; either create it or use another file in the argument/drag and drop.')
+    # Check if version is configured in manifest
+    if manifest['minecraft']['version'] == '':
+        print('Error. There is no Minecraft version specified in the manifest.json')
         exit()
 
-# Prepares output file
-mods = {
-    'files': []
-}
+    # Determines latest forge modloader version depending on mc version
+    modLoaderData = requests.get('https://addons-ecs.forgesvc.net/api/v2/minecraft/modloader', headers=headers)
+    for key in modLoaderData.json():
+        if key['latest'] == True:
+            if key['gameVersion'] == manifest['minecraft']['version']:
+                modLoaders = [{"id": key['name'], "primary": True}]
+                manifest['minecraft']["modLoaders"] = modLoaders
 
-# Mod log function
-line = 0
+    # Reads file from drag and drop or first argument, otherwise emods.txt
+    if len(sys.argv) > 1:
+        i = open(sys.argv[1], 'r')
+    else:
+        try:
+            i = open('mods.txt')
+        except FileNotFoundError:
+            print(
+                'Error. Default mods list (mods.txt) not found; either create it or use another file in the argument/drag '
+                'and drop.')
+            exit()
 
-def log(s):
-    global line
-    print('LINE #' + str(line).zfill(4) + ': ' + s)
+    # Prepares output file
+    mods = {
+        'files': []
+    }
 
-# Project ID from Curseforge link
-def getProjectIDFromLink(link)
-    req = requests.get(link, headers=headers)
+    # Mod log function
+    line = 0
 
+    def log(s):
+        global line
+        print('LINE #' + str(line).zfill(4) + ': ' + s)
 
-# For every mod id
-for line in i:
-    line += 1
+    # Project ID from Curseforge link
+    def getProjectIDFromLink(link):
+        req = requests.get(link, headers=headers)
 
-    # Remove whitespace
-    line = line.strip()
+    # For every mod id
+    for line in i:
+        line += 1
 
-    # Skip blank lines
-    if not line:
-        continue
+        # Remove whitespace
+        line = line.strip()
 
-    # Skip comments
-    if line.startswith('#'):
-        print(projectID)
-        continue
+        # Skip blank lines
+        if not line:
+            continue
 
-    # Get project id from curseforge link
-    projectID = getProjectIDFromLink(line)
+        # Skip comments
+        if line.startswith('#'):
+            print(projectID)
+            continue
 
-    # API GET Request
-    api = requests.get('https://addons-ecs.forgesvc.net/api/v2/addon/' + projectID, headers=headers)
+        # Get project id from curseforge link
+        projectID = getProjectIDFromLink(line)
 
-    # Skip non-existent mods
-    if api.status_code == 404:
-        log('Failed to add mod. Not found.')
-        continue
+        # API GET Request
+        api = requests.get('https://addons-ecs.forgesvc.net/api/v2/addon/' + projectID, headers=headers)
 
-    data = api.json()
+        # Skip non-existent mods
+        if api.status_code == 404:
+            log('Failed to add mod. Not found.')
+            continue
 
-    # Gets mod name
-    modname = data['name']
+        data = api.json()
 
-    # Gets file id for latest build in desired mc version
-    for key in data['gameVersionLatestFiles']:
+        # Gets mod name
+        modname = data['name']
 
-        buildExists = False
-        # If mod has desired mc version
-        if key['gameVersion'] == manifest['minecraft']['version']:
-            # Prepares json for mod
-            mod = {}
-            mod['alias'] = modname + ' (' + key['projectFileName'] + ')'
-            mod['projectID'] = int(projectID)
-            mod['fileID'] = key['projectFileId']
-            mod['required'] = True
+        # Gets file id for latest build in desired mc version
+        for key in data['gameVersionLatestFiles']:
 
-            mods['files'].append(mod)
-            log('Added [' + modname + '] (' + key['projectFileName'] + ')')
-            buildExists = True
-            break
-        
-    if not buildExists:
-        log('Failed to add [' + modname + '], no build for MC ' + manifest['minecraft']['version'])
+            buildExists = False
+            # If mod has desired mc version
+            if key['gameVersion'] == manifest['minecraft']['version']:
+                # Prepares json for mod
+                mod = {
+                    'alias': modname + ' (' + key['projectFileName'] + ')',
+                    'projectID': int(projectID),
+                    'fileID': key['projectFileId'],
+                    'required': True
+                }
 
-# Add files object to manifest
-manifest['files'] = mods['files']
+                mods['files'].append(mod)
+                log('Added [' + modname + '] (' + key['projectFileName'] + ')')
+                buildExists = True
+                break
 
-# Output manifest json to file (with beautify)
-with open('manifest.json', 'w') as o:
-    json.dump(manifest, o, sort_keys=True, indent=4)
+            if not buildExists:
+                log('Failed to add [' + modname + '], no build for MC ' + manifest['minecraft']['version'])
 
-print('Done. Press ENTER to close this window.')
+    # Add files object to manifest
+    manifest['files'] = mods['files']
 
-# Pause to allow viewing of logs
-input()
+    # Output manifest json to file (with beautify)
+    with open('manifest.json', 'w') as o:
+        json.dump(manifest, o, sort_keys=True, indent=4)
+
+    print('Done. Press ENTER to close this window.')
+
+    # Pause to allow viewing of logs
+    input()
